@@ -33,6 +33,7 @@ func runServer() error {
 
 	router.AddAuthGroup(app)
 	router.AddProfileGroup(app)
+	router.AddPostGroup(app)
 	// routers
 	log.Fatal(app.Listen(":" + port))
 

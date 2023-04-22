@@ -14,7 +14,7 @@ func AddAuthGroup(app *fiber.App) {
 
 	authGroup.Get("/allUsers", getAllUsers)
 	authGroup.Post("/register", registerUser)
-	authGroup.Post("/login", authenticateUser)
+	authGroup.Post("/login/:username/:password", authenticateUser)
 	authGroup.Delete("/delete/:username", deleteUser)
 
 }
@@ -46,6 +46,22 @@ func getAllUsers(c *fiber.Ctx) error {
 	})
 }
 
+func findByUsername(c *fiber.Ctx, username string) (models.User, error) {
+	user := models.User{}
+	collection := initializers.GetDBCollection("Users")
+
+	response := collection.FindOne(c.Context(), bson.M{"username": user.Username})
+	err := response.Decode(&user)
+	if err != nil {
+		return models.User{}, c.Status(500).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
+	return models.User{}, c.Status(200).JSON(fiber.Map{
+		"data": user,
+	})
+}
+
 func registerUser(c *fiber.Ctx) error {
 	user := new(models.User)
 
@@ -64,12 +80,12 @@ func registerUser(c *fiber.Ctx) error {
 	}
 
 	collection := initializers.GetDBCollection("Users")
-	check := collection.FindOne(c.Context(), bson.M{"username": user.Username})
-	if check != nil {
-		return c.Status(400).JSON(fiber.Map{
-			"error": "username already exists",
-		})
-	}
+	// check := collection.FindOne(c.Context(), bson.M{"username": user.Username})
+	// if check != nil {
+	// 	return c.Status(400).JSON(fiber.Map{
+	// 		"error": "username already exists",
+	// 	})
+	// }
 
 	user.Password = string(hashedPassword)
 	result, err := collection.InsertOne(c.Context(), user)
@@ -107,23 +123,20 @@ func deleteUser(c *fiber.Ctx) error {
 }
 
 func authenticateUser(c *fiber.Ctx) error {
-	user := models.User{}
-	check := models.User{}
+	username := c.Params("username")
+	pass := c.Params("password")
 
-	c.BodyParser(user)
-	collection := initializers.GetDBCollection("Users")
-	existingUser := collection.FindOne(c.Context(), bson.M{"username": user.Username})
-	err := existingUser.Decode(&check)
+	check, err := findByUsername(c, username)
 	if err != nil {
 		return c.Status(400).JSON(fiber.Map{
-			"error": "could not bind find to user",
+			"error": err.Error(),
 		})
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(check.Password))
+	err = bcrypt.CompareHashAndPassword([]byte(check.Password), []byte(pass))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
-			"error": "mismatched passwords",
+			"error": err.Error(),
 		})
 	}
 
